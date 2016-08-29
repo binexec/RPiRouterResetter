@@ -4,8 +4,11 @@
 */
 
 #include <stdio.h>
-#include <pigpio.h>
+#include <stdlib.h>
 #include <time.h>
+#include <signal.h>
+#include <pigpio.h>
+
 
 //Pin declarations
 #define RELAY1_PIN	2		//Relay is active LOW!
@@ -15,12 +18,40 @@
 
 //Times declarations. All in seconds
 #define NET_CHECK_PERIOD_STD	60	//How often to check network connectivitiy under normal circumstances
-#define NET_CHECK_PERIOD_ALT	180	//When a network failure occurs, how often to check until network is back
+#define NET_CHECK_PERIOD_ALT	180	//When a network failure occurs, how often to check until network is back? This value must be greater than the time it takes for your router/modem to reboot.
 #define RELAY_TOGGLE_TIME	10 	//Relay Cycle time
 #define LED_OK_PULSE		0.25	//When ping suceeded, how long to pulse the green LED
 
 //System command used to ping Google DNS to test internet connectivity
 #define PING_CMD "ping -c 1 8.8.8.8 > /dev/null 2>&1"
+
+
+void sig_handler(int signo)
+{
+	switch(signo)
+	{
+		case SIGINT:
+			printf("SIGINT CAPTURED. Exiting...\n");
+			break;
+		case SIGTERM:
+			printf("SIGINT CAPTURED. Exiting...\n");
+			break;
+		case SIGABRT:
+			printf("SIGINT CAPTURED. Exiting...\n");
+			break;
+		default:
+			printf("CAPTURED UNEXPECTED SIGNAL %d. Ignoring...\n", signo);
+			return;
+	}
+
+	//Set output GPIOs to initial values and exit the program
+	gpioWrite(RELAY1_PIN, 1);	
+	gpioWrite(RLED_PIN, 0);	
+	gpioWrite(GLED_PIN, 0);	
+
+	gpioTerminate();
+	exit(0);
+}
 
 void printTimestamp()
 {
@@ -46,6 +77,9 @@ int main(int argc, char *argv[])
 {
 	double start;
 	int net_check_period = NET_CHECK_PERIOD_STD;
+
+	printTimestamp();
+	printf("Program Started!\n");
  	
 	//Initialize the piggpio library
 	if (gpioInitialise() < 0)
@@ -67,6 +101,11 @@ int main(int argc, char *argv[])
 	gpioWrite(RELAY1_PIN, 1);	
 	gpioWrite(RLED_PIN, 0);	
 	gpioWrite(GLED_PIN, 0);	
+
+	//Setup signal handling for graceful terminations
+	gpioSetSignalFunc(SIGINT, sig_handler);
+	gpioSetSignalFunc(SIGTERM, sig_handler);
+	gpioSetSignalFunc(SIGABRT, sig_handler);
 	
 	//Start timer
 	start = time_time();
@@ -76,13 +115,13 @@ int main(int argc, char *argv[])
 	//Main control loop
 	for(;;)
 	{
-		//Handle button press. TODO: Use interrupts!
+		//Handles manual reset button press
 		if(gpioRead(BTN_PIN) == 0)
 		{
 			printTimestamp();
-			printf("Manual Reset!\n");
+			printf("Manual Reset! Power Cycling for %d seconds. Next check in %d seconds\n", RELAY_TOGGLE_TIME, NET_CHECK_PERIOD_ALT);
 		
-			//If button is pressed, turn the LED ON
+			//Turn the RED LED ON
 			gpioWrite(RLED_PIN, 1);	
 			
 			//Wait until the button is released
@@ -91,9 +130,12 @@ int main(int argc, char *argv[])
 			//Power cycles the relay
 			cycleRelay();
 	
-			//Turn LED off
+			//Turn off the RED LED
 			gpioWrite(RLED_PIN, 0);	
 
+			//Reset timer into alt mode
+			start = time_time();
+			net_check_period = NET_CHECK_PERIOD_ALT;
 			continue;
 		}
 		
@@ -105,7 +147,7 @@ int main(int argc, char *argv[])
 		if(system(PING_CMD) == 0)
 		{
 			printTimestamp();
-			printf("Ping ok!\n");
+			printf("Ping ok! Next check in %d seconds\n", NET_CHECK_PERIOD_STD);
 
 			//Turn off the RED LED (if on)
 			gpioWrite(RLED_PIN, 0);	
@@ -115,7 +157,7 @@ int main(int argc, char *argv[])
 			time_sleep(LED_OK_PULSE);
 			gpioWrite(GLED_PIN, 1);			
 			
-			//Reset the timer
+			//Reset the timer in normal mode
 			start = time_time();
 			net_check_period = NET_CHECK_PERIOD_STD;
 		}
@@ -124,7 +166,7 @@ int main(int argc, char *argv[])
 		else
 		{
 			printTimestamp();
-			printf("Ping failed!\n");
+			printf("Ping failed! Next check in %d seconds\n", NET_CHECK_PERIOD_ALT);
 
 			//Turn off the GREEN LED (if on)
 			gpioWrite(GLED_PIN, 0);	
