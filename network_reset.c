@@ -8,18 +8,18 @@
 #include <time.h>
 
 //Pin declarations
-#define RELAY1_PIN 2		//Relay is active LOW!
-#define GLED_PIN 3		//LED is active HIGH!
-#define RLED_PIN 4		//LED is active HIGH!
-#define BTN_PIN 17		//Button is active LOW!
+#define RELAY1_PIN	2		//Relay is active LOW!
+#define GLED_PIN	3		//LED is active HIGH!
+#define RLED_PIN	4		//LED is active HIGH!
+#define BTN_PIN		17		//Button is active LOW!
 
 //Times declarations. All in seconds
-#define NET_CHECK_PERIOD_STD 3		//How often to check network connectivitiy under normal circumstances
-#define NET_CHECK_PERIOD_ALT 1		//When a network failure occurs, how often to check until network is back
-#define RELAY_TOGGLE_TIME 0.5 		//Relay Cycle time
-#define LED_OK_PULSE 0.25		//When ping suceeded, how long to pulse the green LED
+#define NET_CHECK_PERIOD_STD	60	//How often to check network connectivitiy under normal circumstances
+#define NET_CHECK_PERIOD_ALT	180	//When a network failure occurs, how often to check until network is back
+#define RELAY_TOGGLE_TIME	10 	//Relay Cycle time
+#define LED_OK_PULSE		0.25	//When ping suceeded, how long to pulse the green LED
 
-//Other constant declarations
+//System command used to ping Google DNS to test internet connectivity
 #define PING_CMD "ping -c 1 8.8.8.8 > /dev/null 2>&1"
 
 void printTimestamp()
@@ -63,9 +63,15 @@ int main(int argc, char *argv[])
 	//Setup Pull-up/down for Input pins
 	gpioSetPullUpDown(BTN_PIN, PI_PUD_UP);
 
-	/*End of initialization*/
-
+	//Initial values for output pins
+	gpioWrite(RELAY1_PIN, 1);	
+	gpioWrite(RLED_PIN, 0);	
+	gpioWrite(GLED_PIN, 0);	
+	
+	//Start timer
 	start = time_time();
+
+	/*End of initialization*/
 
 	//Main control loop
 	for(;;)
