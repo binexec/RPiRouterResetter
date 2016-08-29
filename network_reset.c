@@ -17,7 +17,7 @@
 #define BTN_PIN		17		//Button is active LOW!
 
 //Times declarations. All in seconds
-#define NET_CHECK_PERIOD_STD	60	//How often to check network connectivitiy under normal circumstances
+#define NET_CHECK_PERIOD_STD	30	//How often to check network connectivitiy under normal circumstances
 #define NET_CHECK_PERIOD_ALT	180	//When a network failure occurs, how often to check until network is back? This value must be greater than the time it takes for your router/modem to reboot.
 #define RELAY_TOGGLE_TIME	10 	//Relay Cycle time
 #define LED_OK_PULSE		0.25	//When ping suceeded, how long to pulse the green LED
@@ -34,10 +34,10 @@ void sig_handler(int signo)
 			printf("SIGINT CAPTURED. Exiting...\n");
 			break;
 		case SIGTERM:
-			printf("SIGINT CAPTURED. Exiting...\n");
+			printf("SIGTERM CAPTURED. Exiting...\n");
 			break;
 		case SIGABRT:
-			printf("SIGINT CAPTURED. Exiting...\n");
+			printf("SIGABRT CAPTURED. Exiting...\n");
 			break;
 		default:
 			printf("CAPTURED UNEXPECTED SIGNAL %d. Ignoring...\n", signo);
@@ -121,17 +121,15 @@ int main(int argc, char *argv[])
 			printTimestamp();
 			printf("Manual Reset! Power Cycling for %d seconds. Next check in %d seconds\n", RELAY_TOGGLE_TIME, NET_CHECK_PERIOD_ALT);
 		
-			//Turn the RED LED ON
+			//Turn on the RED LED, and turn off the GREEN LED (if on)
 			gpioWrite(RLED_PIN, 1);	
+			gpioWrite(GLED_PIN, 0);	
 			
 			//Wait until the button is released
 			while(gpioRead(BTN_PIN) == 0);
 	
 			//Power cycles the relay
 			cycleRelay();
-	
-			//Turn off the RED LED
-			gpioWrite(RLED_PIN, 0);	
 
 			//Reset timer into alt mode
 			start = time_time();
@@ -152,7 +150,7 @@ int main(int argc, char *argv[])
 			//Turn off the RED LED (if on)
 			gpioWrite(RLED_PIN, 0);	
 
-			//Pulse the green LED
+			//Pulse the green LED low
 			gpioWrite(GLED_PIN, 0);	
 			time_sleep(LED_OK_PULSE);
 			gpioWrite(GLED_PIN, 1);			
@@ -168,11 +166,9 @@ int main(int argc, char *argv[])
 			printTimestamp();
 			printf("Ping failed! Next check in %d seconds\n", NET_CHECK_PERIOD_ALT);
 
-			//Turn off the GREEN LED (if on)
-			gpioWrite(GLED_PIN, 0);	
-			
-			//Turn on the red LED
+			//Turn on the RED LED, and turn off the GREEN LED (if on)
 			gpioWrite(RLED_PIN, 1);	
+			gpioWrite(GLED_PIN, 0);	
 			
 			//Power cycles the relay
 			cycleRelay();
