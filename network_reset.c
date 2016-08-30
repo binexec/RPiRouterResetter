@@ -173,6 +173,9 @@ int main(int argc, char *argv[])
 	//Main control loop
 	for(;;)
 	{
+		//Run the loop at a slower reasonable pace to avoid hogging the CPU
+		time_sleep(MAIN_LOOP_DELAY);
+
 		//Handles manual reset button press
 		if(gpioRead(BTN_PIN) == 0)
 		{

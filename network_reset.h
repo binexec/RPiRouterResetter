@@ -13,7 +13,7 @@
 #define NET_CHECK_PERIOD_ALT		90		//When a network failure occurs, how often to check until network is back? This value must be greater than the time it takes for your router/modem to reboot.
 #define POWER_CYCLE_TIME		10	 	//When power cycling, how long to toggle the relay for
 #define LED_OK_PULSE			0.25		//When ping suceeded, how long to pulse the green LED
-
+#define MAIN_LOOP_DELAY			0.1		//Delay added to each iteration of the main control loop (to save CPU)
 
 //System command used to ping Google DNS to test internet connectivity
 #define PING_CMD			"ping -c 1 8.8.8.8 > /dev/null 2>&1"
