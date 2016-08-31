@@ -15,16 +15,36 @@
 int net_check_period_std = NET_CHECK_PERIOD_STD;
 int net_check_period_alt = NET_CHECK_PERIOD_ALT;
 int power_cycle_time = POWER_CYCLE_TIME;
+int logging_enabled = LOGGING_ENABLED;
 
+//Pointer to log file
+FILE *logfile;
+
+void printTimestamp(FILE *stream)
+{
+	time_t tm;
+	struct tm* tm_info;
+	char tm_str[20];
+
+	time(&tm);
+	tm_info = localtime(&tm);
+	strftime(tm_str, 20, "%m-%d-%Y %H:%M:%S", tm_info);
+	
+	fprintf(stream, "%s ", tm_str);
+}
 
 void createCfgFile()
 {
 	FILE *cfg = fopen(CFG_FILENAME, "w");
 
 	fprintf(cfg, "%s\n\n", CFG_HEADER);
-	fprintf(cfg, "NET_CHECK_PERIOD_STD %d\n", NET_CHECK_PERIOD_STD);
-	fprintf(cfg, "NET_CHECK_PERIOD_ALT %d\n", NET_CHECK_PERIOD_ALT);
-	fprintf(cfg, "POWER_CYCLE_TIME %d\n", POWER_CYCLE_TIME);
+	
+	fprintf(cfg, "%s %d\n", NET_CHECK_PERIOD_STD_STR,  NET_CHECK_PERIOD_STD);
+	fprintf(cfg, "%s %d\n", NET_CHECK_PERIOD_ALT_STR, NET_CHECK_PERIOD_ALT);
+	fprintf(cfg, "%s %d\n", POWER_CYCLE_TIME_STR, POWER_CYCLE_TIME);
+	fprintf(cfg, "%s %d\n", LOGGING_ENABLED_STR, LOGGING_ENABLED);
+	
+	fprintf(cfg, "\n#end of configuration file\n");
 
 	fclose(cfg);
 }
@@ -33,7 +53,7 @@ void parseCfgFile()
 {
 	char buf[CFG_MAX_LINE_CHAR];
 	char *config_str;		//The string represent a variable to set from the line
-	int config_val;			//The value associated with the variable 
+	int config_val;		//The value associated with the variable 
 
 	FILE *cfg = fopen(CFG_FILENAME, "r");	
 
@@ -56,8 +76,8 @@ void parseCfgFile()
 	//Parse the settings in the config file line by line
 	while(fgets(buf, CFG_MAX_LINE_CHAR, cfg) != NULL)
 	{
-		//Ignore empty lines
-		if(buf[0] == '\n') 
+		//Ignore empty lines and comment lines
+		if(buf[0] == '\n' || buf[0] == CFG_COMMENT_CHAR ) 
 			continue;
 
 		//Extract the variable name and associated value from the line
@@ -65,16 +85,48 @@ void parseCfgFile()
 		config_val = atoi(strtok(NULL, " \n\t"));
 		//printf("PARSED: %s,%d\n", config_str, config_val);
 		
-		//Process the command
+		//Attempt to match the string with a known command, and set its corresponding variable with the provided value
+		//The corresponding numerical value is checked to ensure it's within valid range. If not, default values are used.
 		if(strcmp(config_str, NET_CHECK_PERIOD_STD_STR) == 0)
+		{
+			if(config_val <= 0)
+			{
+				printf("Value for %s must be greater than 0. Using default (%d)\n", NET_CHECK_PERIOD_STD_STR,  NET_CHECK_PERIOD_STD);
+				continue;
+			}
 			net_check_period_std = config_val;
-
+		}
+		
 		else if(strcmp(config_str, NET_CHECK_PERIOD_ALT_STR) == 0)
+		{
+			if(config_val <= 0)
+			{
+				printf("Value for %s must be greater than 0.  Using default  (%d)\n", NET_CHECK_PERIOD_ALT_STR, NET_CHECK_PERIOD_ALT);
+				continue;
+			}
 			net_check_period_alt = config_val;
-
+		}
+		
 		else if(strcmp(config_str, POWER_CYCLE_TIME_STR) == 0)
+		{
+			if(config_val <= 0)
+			{
+				printf("Value for %s must be greater than 0.  Using default  (%d)\n", POWER_CYCLE_TIME_STR, POWER_CYCLE_TIME);
+				continue;
+			}
 			power_cycle_time = config_val;
-
+		}
+		
+		else if(strcmp(config_str, LOGGING_ENABLED_STR) == 0)
+		{
+			if(config_val < 0)
+			{
+				printf("Value for %s must be 0 or 1.  Using default  (%d)\n", LOGGING_ENABLED_STR, LOGGING_ENABLED);
+				continue;
+			}
+			logging_enabled = config_val;
+		}
+		
 		else
 			printf("Unrecognized command \"%s\"\n", config_str);
 	}
@@ -82,19 +134,47 @@ void parseCfgFile()
 	fclose(cfg);
 }
 
+void writeEventToLog(char *msg)
+{
+	//Open the log file
+	logfile = fopen(LOG_FILENAME , "a");
+	
+	if(logfile == NULL)
+	{
+		printf("Failed to log event \"%s\" to %s", msg, LOG_FILENAME);
+		perror("");
+	}
+	
+	//Write the event to log
+	printTimestamp(logfile);
+	fprintf(logfile, " %s", msg);
+	
+	//Close the log file
+	fclose(logfile);
+}
+
 void sig_handler(int signo)
 {
 	switch(signo)
 	{
 		case SIGINT:
-			printf("\n***SIGINT CAPTURED*** \nExiting...\n");
+			printf("\n***SIGINT CAPTURED*** \n");
+			if(logging_enabled)
+				writeEventToLog("Received SIGINT\n");
 			break;
+			
 		case SIGTERM:
-			printf("\n***SIGTERM CAPTURED*** \nExiting...\n");
+			printf("\n***SIGTERM CAPTURED*** \n");
+			if(logging_enabled)
+				writeEventToLog("ReceivedSIGTERM\n");
 			break;
+			
 		case SIGABRT:
-			printf("\n***SIGABRT CAPTURED*** \nExiting...\n");
+			printf("\n***SIGABRT CAPTURED*** \n");
+			if(logging_enabled)
+				writeEventToLog("Received SIGABRT\n");
 			break;
+			
 		default:
 			printf("\nCAPTURED UNEXPECTED SIGNAL %d. Ignoring...\n", signo);
 			return;
@@ -106,23 +186,19 @@ void sig_handler(int signo)
 	gpioWrite(GLED_PIN, 0);	
 
 	gpioTerminate();
-	exit(0);
+	exit(0);			
 }
 
-void printTimestamp()
+void termination_routine()
 {
-	time_t tm;
-	struct tm* tm_info;
-	char tm_str[20];
-
-	time(&tm);
-	tm_info = localtime(&tm);
-	strftime(tm_str, 20, "%m-%d-%Y %H:%M:%S", tm_info);
+	printTimestamp(stdout);
+	printf("Exiting...\n");
 	
-	printf("%s ", tm_str);
+	if(logging_enabled)
+		writeEventToLog("Program terminated.\n\n");
 }
 
-void cycleRelay()
+void powerCycle()
 {
 	gpioWrite(RELAY1_PIN, 0);	
 	time_sleep(power_cycle_time);
@@ -133,18 +209,28 @@ int main(int argc, char *argv[])
 {
 	double start;
 	int current_checking_period;
-
-	printTimestamp();
-	printf("Program Started!\n");
+	int was_offline = 0;
 	
+	//Run the termination routine if the program exits at some point, due to initialization failures or captured signals
+	atexit(termination_routine);
+		
 	//Parse the external config file if exists
 	parseCfgFile();
 	current_checking_period = net_check_period_std;
+	
+	printTimestamp(stdout);
+	printf("Program Started!\n");
+
+	if(logging_enabled)
+		writeEventToLog("Program Started\n");
  	
 	//Initialize the piggpio library
 	if (gpioInitialise() < 0)
   	{
 		fprintf(stderr, "pigpio initialisation failed\n");
+		if(logging_enabled)
+			writeEventToLog("\nProgram Started\n");
+		
 		return -1;
 	}
 
@@ -179,18 +265,26 @@ int main(int argc, char *argv[])
 		//Handles manual reset button press
 		if(gpioRead(BTN_PIN) == 0)
 		{
-			printTimestamp();
-			printf("Manual Reset! Power Cycling for %d seconds. Next check in %d seconds\n", POWER_CYCLE_TIME, NET_CHECK_PERIOD_ALT);
+			printTimestamp(stdout);
+			printf("Manual Reset! Power Cycling for %d seconds. Next check in %d seconds\n", power_cycle_time, net_check_period_alt);
+			
+			//Write event to log
+			if(logging_enabled)
+			{
+				writeEventToLog("Manual Reset\n");
+				was_offline = 1;
+			}
 		
 			//Turn on the RED LED, and turn off the GREEN LED (if on)
 			gpioWrite(RLED_PIN, 1);	
 			gpioWrite(GLED_PIN, 0);	
 			
-			//Wait until the button is released
-			while(gpioRead(BTN_PIN) == 0);
+			//Wait until the button is released.
+			while(gpioRead(BTN_PIN) == 0)
+				time_sleep(MAIN_LOOP_DELAY);
 	
 			//Power cycles the relay
-			cycleRelay();
+			powerCycle();
 
 			//Reset timer into alt mode
 			start = time_time();
@@ -205,8 +299,15 @@ int main(int argc, char *argv[])
 		//Check if the network is ok by pinging google's DNS server
 		if(system(PING_CMD) == 0)
 		{
-			printTimestamp();
+			printTimestamp(stdout);
 			printf("Ping ok! Next check in %d seconds\n", net_check_period_std);
+			
+			//If network was previously down, write log that network is back online
+			if(was_offline && logging_enabled)
+			{
+				writeEventToLog("Network restored\n");
+				was_offline = 0;
+			}
 
 			//Turn off the RED LED (if on)
 			gpioWrite(RLED_PIN, 0);	
@@ -224,15 +325,22 @@ int main(int argc, char *argv[])
 		//Ping failed indicating network failure
 		else
 		{
-			printTimestamp();
+			printTimestamp(stdout);
 			printf("Ping failed! Next check in %d seconds\n", net_check_period_alt);
+			
+			//Log the event
+			if(!was_offline && logging_enabled)
+			{
+				writeEventToLog("Lost network connectivity\n");
+				was_offline = 1;
+			}
 
 			//Turn on the RED LED, and turn off the GREEN LED (if on)
 			gpioWrite(RLED_PIN, 1);	
 			gpioWrite(GLED_PIN, 0);	
 			
 			//Power cycles the relay
-			cycleRelay();
+			powerCycle();
 
 			//Reset the timer into alt mode
 			start = time_time();
