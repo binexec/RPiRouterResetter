@@ -1,9 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "extern_cfg.h"
 #include "network_reset.h"
 
+//Initialize the configuration variables for the main program with default values
+uint32_t net_check_period_std = NET_CHECK_PERIOD_STD;
+uint32_t net_check_period_alt = NET_CHECK_PERIOD_ALT;
+uint32_t power_cycle_time = POWER_CYCLE_TIME;
+uint32_t max_ping_fails = MAX_PING_FAILS;
+uint32_t logging_enabled = LOGGING_ENABLED;
+
+//Create a new configuration file with default values
 void createCfgFile()
 {
 	FILE *cfg = fopen(CFG_FILENAME, "w");
@@ -13,6 +22,7 @@ void createCfgFile()
 	fprintf(cfg, "%s %d\n", NET_CHECK_PERIOD_STD_STR,  NET_CHECK_PERIOD_STD);
 	fprintf(cfg, "%s %d\n", NET_CHECK_PERIOD_ALT_STR, NET_CHECK_PERIOD_ALT);
 	fprintf(cfg, "%s %d\n", POWER_CYCLE_TIME_STR, POWER_CYCLE_TIME);
+	fprintf(cfg, "%s %d\n", MAX_PING_FAILS_STR, MAX_PING_FAILS);
 	fprintf(cfg, "%s %d\n", LOGGING_ENABLED_STR, LOGGING_ENABLED);
 	
 	fprintf(cfg, "\n#end of configuration file\n");
@@ -20,6 +30,7 @@ void createCfgFile()
 	fclose(cfg);
 }
 
+//Read and parse an existing configuration file
 void parseCfgFile()
 {
 	char buf[CFG_MAX_LINE_CHAR];
@@ -48,7 +59,7 @@ void parseCfgFile()
 	while(fgets(buf, CFG_MAX_LINE_CHAR, cfg) != NULL)
 	{
 		//Ignore empty lines and comment lines
-		if(buf[0] == '\n' || buf[0] == CFG_COMMENT_CHAR ) 
+		if(buf[0] == '\n' || buf[0] == CFG_COMMENT_CHAR) 
 			continue;
 
 		//Extract the variable name and associated value from the line
@@ -56,7 +67,7 @@ void parseCfgFile()
 		config_val = atoi(strtok(NULL, " \n\t"));
 		//printf("PARSED: %s,%d\n", config_str, config_val);
 		
-		//Attempt to match the string with a known command, and set its corresponding variable with the provided value
+		//Attempt to match the string with a known parameter, and set its corresponding variable with the provided value
 		//The corresponding numerical value is checked to ensure it's within valid range. If not, default values are used.
 		if(strcmp(config_str, NET_CHECK_PERIOD_STD_STR) == 0)
 		{
@@ -86,6 +97,16 @@ void parseCfgFile()
 				continue;
 			}
 			power_cycle_time = config_val;
+		}
+		
+		else if(strcmp(config_str, MAX_PING_FAILS_STR) == 0)
+		{
+			if(config_val <= 0)
+			{
+				printf("Value for %s must be greater than 0.  Using default  (%d)\n", MAX_PING_FAILS_STR, MAX_PING_FAILS);
+				continue;
+			}
+			max_ping_fails = config_val;
 		}
 		
 		else if(strcmp(config_str, LOGGING_ENABLED_STR) == 0)
