@@ -147,13 +147,13 @@ int ping_ok_handler()
 {
 	printTimestamp(stdout);
 	printf("Ping ok! Next check in %d seconds\n", net_check_period_std);
-	
+
 	//If network was previously down, write log that network is back online
 	if(failed_pings >= MAX_PING_FAILS && logging_enabled)
-	{
 		writeEventToLog("Network restored\n");
-		failed_pings = 0;
-	}
+	
+	//Clear the failed pings counter
+	failed_pings = 0;
 
 	//Turn off the RED LED (if on)
 	gpioWrite(RLED_PIN, 0);	
