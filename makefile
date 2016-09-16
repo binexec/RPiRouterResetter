@@ -11,3 +11,4 @@ extern_cfg.o: extern_cfg.c
 
 clean:
 	rm -f *.o
+	rm -f network_reset

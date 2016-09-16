@@ -119,12 +119,12 @@ int manual_reset_handler()
 	printTimestamp(stdout);
 	printf("Manual Reset! Power cycling for %d seconds. Next check in %d seconds\n", power_cycle_time, net_check_period_alt);
 			
-	//Write event to log and mark network as down
+	//Write event to log 
 	if(logging_enabled)
-	{
 		writeEventToLog("Manual Reset\n");
-		failed_pings = MAX_PING_FAILS;
-	}
+	
+	//mark network as down
+	failed_pings = MAX_PING_FAILS;
 		
 	//Turn on the RED LED, and turn off the GREEN LED (if on)
 	gpioWrite(RLED_PIN, 1);	
