@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 {
 	initialize();
 	timer = time_time();
-	current_checking_period = net_check_period_std;
+	current_checking_period = net_check_period_alt;
 
 	//Main control loop
 	for(;;)
